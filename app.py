@@ -1,5 +1,5 @@
 import streamlit as st
-import anthropic
+import google.generativeai as genai
 import html
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ def get_api_key() -> str | None:
     """Return API key from Streamlit secrets or st.session_state (manual entry)."""
     # 1. Streamlit secrets (Streamlit Cloud deployment)
     try:
-        return st.secrets["ANTHROPIC_API_KEY"]
+        return st.secrets["GOOGLE_API_KEY"]
     except (KeyError, FileNotFoundError):
         pass
     # 2. Manually entered in sidebar
@@ -145,10 +145,10 @@ PROFILE CONTEXT:
 """
 
 
-# ── Helper: call Anthropic API with streaming ─────────────────────────────────
+# ── Helper: call Google Gemini API with streaming ─────────────────────────────
 def generate_post_stream(topic: str, tone: str, goal: str, length: str, extra: str, api_key: str):
     """
-    Calls the Anthropic API using streaming and yields text chunks.
+    Calls the Google Gemini API using streaming and yields text chunks.
 
     Parameters
     ----------
@@ -157,7 +157,7 @@ def generate_post_stream(topic: str, tone: str, goal: str, length: str, extra: s
     goal    : Post objective (e.g. Build authority)
     length  : Desired post length
     extra   : Any extra instructions from the user
-    api_key : Anthropic API key
+    api_key : Google API key
 
     Yields
     ------
@@ -186,15 +186,13 @@ Rules:
 Return ONLY the post text. No intro, no explanation.
 """
 
-    client = anthropic.Anthropic(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
-    with client.messages.stream(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        for text in stream.text_stream:
-            yield text
+    response = model.generate_content(prompt, stream=True)
+    for chunk in response:
+        if chunk.text:
+            yield chunk.text
 
 
 # ── Sidebar: API key entry ────────────────────────────────────────────────────
@@ -205,7 +203,7 @@ with st.sidebar:
     # Only show the manual input if not already in secrets
     has_secret = False
     try:
-        _ = st.secrets["ANTHROPIC_API_KEY"]
+        _ = st.secrets["GOOGLE_API_KEY"]
         has_secret = True
     except (KeyError, FileNotFoundError):
         pass
@@ -214,11 +212,11 @@ with st.sidebar:
         st.success("API key loaded from secrets ✓")
     else:
         st.text_input(
-            "Anthropic API Key",
+            "Google API Key",
             type="password",
-            placeholder="sk-ant-...",
+            placeholder="AIza...",
             key="api_key_input",
-            help="Get your key at console.anthropic.com",
+            help="Get your free key at aistudio.google.com/apikey",
         )
         st.caption("Your key is only stored in session memory.")
 
@@ -336,12 +334,14 @@ if should_generate:
                 st.session_state["last_length"] = length
                 st.session_state["last_extra"] = extra
 
-            except anthropic.AuthenticationError:
-                st.error("❌ Invalid API key. Please check your Anthropic API key.")
-            except anthropic.RateLimitError:
-                st.error("⚠️ Rate limit hit. Please wait a moment and try again.")
             except Exception as e:
-                st.error(f"Something went wrong: {e}")
+                err = str(e)
+                if "API_KEY_INVALID" in err or "invalid" in err.lower():
+                    st.error("❌ Invalid API key. Check your Google API key.")
+                elif "quota" in err.lower() or "429" in err:
+                    st.error("⚠️ Rate limit hit. Please wait a moment and try again.")
+                else:
+                    st.error(f"Something went wrong: {e}")
 
 # Show persisted post (non-streaming render after generation)
 elif "last_post" in st.session_state:
