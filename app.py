@@ -187,7 +187,7 @@ Return ONLY the post text. No intro, no explanation.
 """
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-3.8-flash")
 
     response = model.generate_content(prompt, stream=True)
     for chunk in response:
