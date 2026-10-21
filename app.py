@@ -1,6 +1,8 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import google.generativeai as genai
 import html
+import json
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -365,11 +367,38 @@ if "last_post" in st.session_state and not should_generate:
     )
 
     st.markdown('<div class="section-label" style="margin-top:16px">Copy Post</div>', unsafe_allow_html=True)
-    st.text_area(
-        label="copy",
-        label_visibility="collapsed",
-        value=post,
-        height=180,
-        key="copy_box",
-    )
-    st.caption("👆 Click inside the box above, select all (Ctrl+A / Cmd+A), then copy.")
+
+    # Encode post safely for JavaScript
+    post_js = json.dumps(post)  # handles all special chars, newlines, quotes
+
+    copy_btn_html = f"""
+    <button id="copyBtn" onclick="
+        navigator.clipboard.writeText({post_js}).then(function() {{
+            var btn = document.getElementById('copyBtn');
+            btn.innerHTML = '✓ Copied to clipboard!';
+            btn.style.background = '#4ade80';
+            btn.style.color = '#111';
+            setTimeout(function() {{
+                btn.innerHTML = '📋 Copy to Clipboard';
+                btn.style.background = '#FED34D';
+                btn.style.color = '#444444';
+            }}, 2500);
+        }}).catch(function() {{
+            alert('Copy failed — please select the text manually.');
+        }});
+    " style="
+        background: #FED34D;
+        color: #444444;
+        font-weight: 700;
+        border: none;
+        border-radius: 9px;
+        padding: 13px 20px;
+        width: 100%;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        font-family: sans-serif;
+        letter-spacing: 0.01em;
+    ">📋 Copy to Clipboard</button>
+    """
+    components.html(copy_btn_html, height=60)
